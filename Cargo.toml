@@ -12,3 +12,5 @@ keywords = ["cancel", "cancellation", "liveness", "cooperative"]
 license = "MIT"
 
 [dependencies]
+cancel-this = "0.4.0"
+serde = { version = "1.0", features = ["derive"] }
