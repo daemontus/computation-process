@@ -1,6 +1,6 @@
 use crate::generatable::Generatable;
 use crate::{Completable, GenAlgorithm, Incomplete, Stateful};
-use cancel_this::Cancellable;
+use cancel_this::{Cancellable, is_cancelled};
 use std::marker::PhantomData;
 
 pub trait GeneratorStep<CONTEXT, STATE, ITEM> {
@@ -20,6 +20,10 @@ impl<CONTEXT, STATE, ITEM, STEP: GeneratorStep<CONTEXT, STATE, ITEM>> Iterator
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            if let Err(e) = is_cancelled!() {
+                return Some(Err(e));
+            }
+
             match STEP::step(&self.context, &mut self.state) {
                 Ok(None) => return None,
                 Ok(Some(item)) => return Some(Ok(item)),
@@ -62,6 +66,10 @@ impl<CONTEXT, STATE, ITEM, STEP: GeneratorStep<CONTEXT, STATE, ITEM>> Stateful<C
 
     fn state(&self) -> &STATE {
         &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut STATE {
+        &mut self.state
     }
 }
 

@@ -17,7 +17,7 @@ pub use completable::{Completable, Incomplete};
 pub use computable::{Computable, ComputableResult};
 pub use computable_identity::ComputableIdentity;
 pub use computation::{Computation, ComputationStep};
-pub use generator::Generator;
+pub use generator::{Generator, GeneratorStep};
 
 /// A type alias for `Box<dyn Computable<T>>`.
 pub type DynComputable<T> = Box<dyn Computable<T>>;
@@ -29,4 +29,31 @@ pub type DynGeneratable<T> = Box<dyn Generatable<T>>;
 pub type DynAlgorithm<CONTEXT, STATE, OUTPUT> = Box<dyn Algorithm<CONTEXT, STATE, OUTPUT>>;
 
 /// A type alias for `Box<dyn GenAlgorithm<CONTEXT, STATE, OUTPUT>>`.
-pub type DynGenAlgorithm<CONTEXT, STATE, OUTPUT> = Box<dyn GenAlgorithm<CONTEXT, STATE, OUTPUT>>;
+pub type DynGenAlgorithm<CONTEXT, STATE, ITEM> = Box<dyn GenAlgorithm<CONTEXT, STATE, ITEM>>;
+
+// Dummy implementations of Computable / Generatable for dynamic objects, because these
+// are not implemented automatically.
+
+impl<T> Computable<T> for DynComputable<T> {
+    fn try_compute(&mut self) -> Completable<T> {
+        (**self).try_compute()
+    }
+}
+
+impl<CONTEXT, STATE, OUTPUT> Computable<OUTPUT> for DynAlgorithm<CONTEXT, STATE, OUTPUT> {
+    fn try_compute(&mut self) -> Completable<OUTPUT> {
+        (**self).try_compute()
+    }
+}
+
+impl<T> Generatable<T> for DynGeneratable<T> {
+    fn try_next(&mut self) -> Option<Completable<T>> {
+        (**self).try_next()
+    }
+}
+
+impl<CONTEXT, STATE, OUTPUT> Generatable<OUTPUT> for DynGenAlgorithm<CONTEXT, STATE, OUTPUT> {
+    fn try_next(&mut self) -> Option<Completable<OUTPUT>> {
+        (**self).try_next()
+    }
+}

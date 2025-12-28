@@ -1,4 +1,5 @@
 use crate::{Algorithm, Completable, Computable, Stateful};
+use cancel_this::is_cancelled;
 use std::marker::PhantomData;
 
 pub trait ComputationStep<CONTEXT, STATE, OUTPUT> {
@@ -15,6 +16,7 @@ impl<CONTEXT, STATE, OUTPUT, STEP: ComputationStep<CONTEXT, STATE, OUTPUT>> Comp
     for Computation<CONTEXT, STATE, OUTPUT, STEP>
 {
     fn try_compute(&mut self) -> Completable<OUTPUT> {
+        is_cancelled!()?;
         STEP::step(&self.context, &mut self.state)
     }
 }
@@ -43,6 +45,10 @@ impl<CONTEXT, STATE, OUTPUT, STEP: ComputationStep<CONTEXT, STATE, OUTPUT>> Stat
 
     fn state(&self) -> &STATE {
         &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut STATE {
+        &mut self.state
     }
 }
 
