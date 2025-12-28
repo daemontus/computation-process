@@ -1,12 +1,21 @@
+[![Crates.io](https://img.shields.io/crates/v/computation-process?style=flat-square)](https://crates.io/crates/computation-process)
+[![Api Docs](https://img.shields.io/badge/docs-api-yellowgreen?style=flat-square)](https://docs.rs/computation-process/)
+[![Continuous integration](https://img.shields.io/github/actions/workflow/status/daemontus/computation-process/build.yml?branch=main&style=flat-square)](https://github.com/daemontus/computation-process/actions/workflows/build.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/daemontus/computation-process?style=flat-square)](https://codecov.io/gh/daemontus/computation-process)
+[![GitHub issues](https://img.shields.io/github/issues/daemontus/computation-process?style=flat-square)](https://github.com/daemontus/computation-process/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/daemontus/computation-process?style=flat-square)](https://github.com/daemontus/computation-process/commits/main)
+[![Crates.io](https://img.shields.io/crates/l/computation-process?style=flat-square)](https://github.com/daemontus/computation-process/blob/main/LICENSE)
+
 # Rust Computation Process
 
 This library provides abstractions for defining "long-running" computations.
 The concepts in `computation-process` are often similar to "normal" asynchronous 
-code, but offer certain features that were never a priority in "normal" asynchronous 
+code, but offer certain features that were never a priority in asynchronous 
 programming. **The target audience are projects that implement CPU-intensive,
-long-running computations but require granular control over the computation state.**
+long-running computations but require granular control over the computation state
+(e.g., because the computation is controlled from a user interface).**
 
-> This is currently still very "experimental". I am releasing this on `crates.io`
+> This is currently still very "experimental." I am releasing this on `crates.io`
 > to allow some initial large-scale usage experiments, but please bear in mind that the
 > API can change in the future.
 
@@ -41,4 +50,4 @@ Specific problems for which `computation-process` offers an opinionated design p
    (like a cancellable/suspendable iterator).
  - A `Computation` and `Generator` are the default implementations of these interfaces.
    They delegate the actual computation to `ComputationStep` and `GeneratorStep` while
-   taking care of the remaining "boilerplate".
+   taking care of the remaining "boilerplate."
