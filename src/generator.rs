@@ -3,10 +3,68 @@ use crate::{Completable, GenAlgorithm, Incomplete, Stateful};
 use cancel_this::{Cancellable, is_cancelled};
 use std::marker::PhantomData;
 
+/// Defines a single step of a [`Generator`].
+///
+/// Implement this trait to define the logic for generating items.
+/// Each call to `step` should either:
+/// - Return `Ok(Some(item))` to yield an item
+/// - Return `Ok(None)` when the generator is exhausted
+/// - Return `Err(Incomplete::Suspended)` to yield control without producing an item
+/// - Return `Err(Incomplete::Cancelled(_))` if cancellation was detected
+///
+/// # Type Parameters
+///
+/// - `CONTEXT`: Immutable configuration/input for the generator
+/// - `STATE`: Mutable state that persists across steps
+/// - `ITEM`: The type of items produced by the generator
 pub trait GeneratorStep<CONTEXT, STATE, ITEM> {
+    /// Execute one step of the generator.
+    ///
+    /// Returns `Some(item)` to yield an item, or `None` when exhausted.
     fn step(context: &CONTEXT, state: &mut STATE) -> Completable<Option<ITEM>>;
 }
 
+/// A stateful generator that can be suspended and resumed.
+///
+/// `Generator` is the default implementation of [`GenAlgorithm`]. It delegates the
+/// actual generation logic to a [`GeneratorStep`] implementation while handling
+/// the boilerplate of state management and cancellation checking.
+///
+/// `Generator` implements both [`Generatable`] (for suspendable iteration) and
+/// [`Iterator`] (for convenient collection, skipping suspensions automatically).
+///
+/// # Type Parameters
+///
+/// - `CONTEXT`: Immutable configuration passed to each step
+/// - `STATE`: Mutable state that persists across steps
+/// - `ITEM`: The type of items produced
+/// - `STEP`: The [`GeneratorStep`] implementation that defines the generation logic
+///
+/// # Example
+///
+/// ```rust
+/// use computation_process::{Generator, GeneratorStep, Completable, Generatable, Stateful};
+///
+/// struct CountStep;
+///
+/// impl GeneratorStep<u32, u32, u32> for CountStep {
+///     fn step(max: &u32, current: &mut u32) -> Completable<Option<u32>> {
+///         *current += 1;
+///         if *current <= *max {
+///             Ok(Some(*current))
+///         } else {
+///             Ok(None)
+///         }
+///     }
+/// }
+///
+/// let mut generator = Generator::<u32, u32, u32, CountStep>::from_parts(3, 0);
+/// assert_eq!(generator.try_next(), Some(Ok(1)));
+/// assert_eq!(generator.try_next(), Some(Ok(2)));
+/// assert_eq!(generator.try_next(), Some(Ok(3)));
+/// assert_eq!(generator.try_next(), None);
+/// ```
+#[derive(Debug)]
 pub struct Generator<CONTEXT, STATE, ITEM, STEP: GeneratorStep<CONTEXT, STATE, ITEM>> {
     context: CONTEXT,
     state: STATE,
@@ -29,6 +87,7 @@ impl<CONTEXT, STATE, ITEM, STEP: GeneratorStep<CONTEXT, STATE, ITEM>> Iterator
                 Ok(Some(item)) => return Some(Ok(item)),
                 Err(Incomplete::Suspended) => continue,
                 Err(Incomplete::Cancelled(c)) => return Some(Err(c)),
+                Err(Incomplete::Exhausted) => return None,
             }
         }
     }
@@ -38,6 +97,9 @@ impl<CONTEXT, STATE, OUTPUT, STEP: GeneratorStep<CONTEXT, STATE, OUTPUT>> Genera
     for Generator<CONTEXT, STATE, OUTPUT, STEP>
 {
     fn try_next(&mut self) -> Option<Completable<OUTPUT>> {
+        if let Err(e) = is_cancelled!() {
+            return Some(Err(Incomplete::Cancelled(e)));
+        }
         STEP::step(&self.context, &mut self.state).transpose()
     }
 }

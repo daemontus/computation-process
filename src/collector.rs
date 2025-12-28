@@ -1,5 +1,33 @@
 use crate::{Completable, Computable, DynGeneratable, Incomplete};
 
+/// A [`Computable`] that collects all items from a [`Generatable`](crate::Generatable) into a collection.
+///
+/// This is useful for converting a generator/stream of items into a single collected result.
+/// The collection type must implement [`Default`] and [`Extend`].
+///
+/// # Example
+///
+/// ```rust
+/// use computation_process::{Generator, GeneratorStep, Completable, Computable, Collector, Stateful, Generatable};
+///
+/// struct RangeStep;
+///
+/// impl GeneratorStep<u32, u32, u32> for RangeStep {
+///     fn step(max: &u32, current: &mut u32) -> Completable<Option<u32>> {
+///         *current += 1;
+///         if *current <= *max {
+///             Ok(Some(*current))
+///         } else {
+///             Ok(None)
+///         }
+///     }
+/// }
+///
+/// let generator = Generator::<u32, u32, u32, RangeStep>::from_parts(3, 0);
+/// let mut collector: Collector<u32, Vec<u32>> = generator.dyn_generatable().into();
+/// let result = collector.compute().unwrap();
+/// assert_eq!(result, vec![1, 2, 3]);
+/// ```
 pub struct Collector<ITEM, COLLECTION: Default + Extend<ITEM>> {
     generator: DynGeneratable<ITEM>,
     collector: Option<COLLECTION>,
@@ -21,20 +49,24 @@ impl<ITEM, COLLECTION: Default + Extend<ITEM>> Computable<COLLECTION>
 {
     fn try_compute(&mut self) -> Completable<COLLECTION> {
         match self.generator.try_next() {
-            None => Ok(self
-                .collector
-                .take()
-                .expect("Trying to poll a stale computable.")),
+            None => {
+                if let Some(collector) = self.collector.take() {
+                    Ok(collector)
+                } else {
+                    Err(Incomplete::Exhausted)
+                }
+            }
             Some(Ok(item)) => {
-                let collector = self
-                    .collector
-                    .as_mut()
-                    .expect("Trying to poll a stale computable.");
-                collector.extend(std::iter::once(item));
-                Err(Incomplete::Suspended)
+                if let Some(collector) = self.collector.as_mut() {
+                    collector.extend(std::iter::once(item));
+                    Err(Incomplete::Suspended)
+                } else {
+                    Err(Incomplete::Exhausted)
+                }
             }
             Some(Err(Incomplete::Suspended)) => Err(Incomplete::Suspended),
             Some(Err(Incomplete::Cancelled(c))) => Err(Incomplete::Cancelled(c)),
+            Some(Err(Incomplete::Exhausted)) => Err(Incomplete::Exhausted),
         }
     }
 }
@@ -235,8 +267,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "stale")]
-    fn test_collector_stale_after_completion() {
+    fn test_collector_exhausted_after_completion() {
         let generator = TestGenerator {
             items: vec![1],
             index: 0,
@@ -249,8 +280,8 @@ mod tests {
         // The second call completes
         let _ = collector.try_compute().unwrap();
 
-        // Third call should panic (stale)
-        let _ = collector.try_compute();
+        // Third call should return Exhausted
+        assert_eq!(collector.try_compute(), Err(Incomplete::Exhausted));
     }
 
     struct CancellingGenerator {

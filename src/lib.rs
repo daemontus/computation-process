@@ -1,3 +1,58 @@
+//! # Computation process
+//!
+//! A Rust library for defining stateful computations (and generators) that support
+//! suspend/resume, interleaving, cancellation, and serialization.
+//!
+//! ## Overview
+//!
+//! This library provides abstractions for defining "long-running" computations.
+//! The concepts are similar to asynchronous code but offer features that were never
+//! a priority in async programming. **The target audience are projects that implement
+//! CPU-intensive, long-running computations but require granular control over the
+//! computation state.**
+//!
+//! ## Key Features
+//!
+//! - **Cancellation:** Each computation can be forcefully stopped using cooperative
+//!   cancellation (compatible with the [`cancel-this`](https://crates.io/crates/cancel-this) crate).
+//! - **Suspend/resume:** A computation can define safe suspend points. During these points,
+//!   it is safe to serialize, interleave, or otherwise "transfer" the computation.
+//! - **Interleaving:** Suspend points allow safely interleaving multiple computations on a
+//!   single thread with priority-based scheduling.
+//! - **Serialization:** The state of each computation is isolated and can be saved/restored.
+//!
+//! ## Core Concepts
+//!
+//! - [`Completable<T>`]: A result type that can be incomplete (`Suspended`, `Cancelled`, or `Exhausted`).
+//! - [`Computable<T>`]: A trait for objects that can be driven to completion by calling [`Computable::try_compute`].
+//! - [`Algorithm<CTX, STATE, T>`]: Extends [`Computable`] with access to context and state.
+//! - [`Generatable<T>`]: Like [`Computable`], but produces a stream of values.
+//! - [`GenAlgorithm<CTX, STATE, T>`]: Extends [`Generatable`] with context and state.
+//! - [`Computation`] and [`Generator`]: Default implementations using step functions.
+//!
+//! ## Quick Example
+//!
+//! ```rust
+//! use computation_process::{Computation, ComputationStep, Completable, Incomplete, Computable, Stateful};
+//!
+//! struct CountingStep;
+//!
+//! impl ComputationStep<u32, u32, u32> for CountingStep {
+//!     fn step(target: &u32, count: &mut u32) -> Completable<u32> {
+//!         *count += 1;
+//!         if *count >= *target {
+//!             Ok(*count)
+//!         } else {
+//!             Err(Incomplete::Suspended)
+//!         }
+//!     }
+//! }
+//!
+//! let mut computation = Computation::<u32, u32, u32, CountingStep>::from_parts(5, 0);
+//! let result = computation.compute().unwrap();
+//! assert_eq!(result, 5);
+//! ```
+
 // All traits/structs have dedicated modules for encapsulation, and we then re-export
 // these types here for easier public usage.
 
@@ -163,19 +218,19 @@ mod integration_tests {
             Computation::<Vec<i32>, i32, i32, SumComputationStep>::from_parts(vec![1, 2, 3], 0);
         let mut dyn_computable: DynComputable<i32> = computation.dyn_computable();
 
-        // First call should suspend
+        // The first call should suspend
         assert!(matches!(
             dyn_computable.try_compute(),
             Err(Incomplete::Suspended)
         ));
 
-        // Second call should suspend
+        // The second call should suspend
         assert!(matches!(
             dyn_computable.try_compute(),
             Err(Incomplete::Suspended)
         ));
 
-        // Third call should suspend
+        // The third call should suspend
         assert!(matches!(
             dyn_computable.try_compute(),
             Err(Incomplete::Suspended)
@@ -236,7 +291,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_multiple_dyn_computables() {
+    fn test_multiple_dyn_computable() {
         let identity1: ComputableIdentity<i32> = 10.into();
         let identity2: ComputableIdentity<i32> = 20.into();
 
@@ -245,5 +300,97 @@ mod integration_tests {
 
         assert_eq!(dyn1.try_compute().unwrap(), 10);
         assert_eq!(dyn2.try_compute().unwrap(), 20);
+    }
+
+    // Cancellation integration tests
+
+    struct LongRunningStep;
+
+    impl ComputationStep<u32, u32, u32> for LongRunningStep {
+        fn step(target: &u32, state: &mut u32) -> Completable<u32> {
+            *state += 1;
+            if *state >= *target {
+                Ok(*state)
+            } else {
+                Err(Incomplete::Suspended)
+            }
+        }
+    }
+
+    #[test]
+    fn test_computation_cancellation() {
+        use cancel_this::{CancelAtomic, on_trigger};
+
+        let trigger = CancelAtomic::new();
+        trigger.cancel(); // Pre-cancel
+
+        let mut computation = Computation::<u32, u32, u32, LongRunningStep>::from_parts(1000, 0);
+
+        let result = on_trigger(trigger, || computation.try_compute());
+
+        assert!(matches!(result, Err(Incomplete::Cancelled(_))));
+    }
+
+    #[test]
+    fn test_computation_compute_with_cancellation() {
+        use cancel_this::{CancelAtomic, on_trigger};
+
+        let trigger = CancelAtomic::new();
+        trigger.cancel(); // Pre-cancel
+
+        let mut computation = Computation::<u32, u32, u32, LongRunningStep>::from_parts(1000, 0);
+
+        let result = on_trigger(trigger, || computation.compute());
+
+        assert!(result.is_err());
+    }
+
+    struct CancellableGeneratorStep;
+
+    impl GeneratorStep<u32, u32, u32> for CancellableGeneratorStep {
+        fn step(max: &u32, state: &mut u32) -> Completable<Option<u32>> {
+            *state += 1;
+            if *state <= *max {
+                Ok(Some(*state))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+
+    #[test]
+    fn test_generator_iterator_cancellation() {
+        use cancel_this::{CancelAtomic, on_trigger};
+
+        let trigger = CancelAtomic::new();
+        trigger.cancel(); // Pre-cancel
+
+        let mut generator =
+            Generator::<u32, u32, u32, CancellableGeneratorStep>::from_parts(100, 0);
+
+        // on_trigger expects Result, so we wrap the iterator call
+        let result = on_trigger(trigger, || match generator.next() {
+            Some(Ok(v)) => Ok(Some(v)),
+            Some(Err(e)) => Err(e),
+            None => Ok(None),
+        });
+
+        // Should be canceled
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_collector_with_cancellation() {
+        use cancel_this::{CancelAtomic, on_trigger};
+
+        let trigger = CancelAtomic::new();
+        trigger.cancel(); // Pre-cancel
+
+        let generator = Generator::<u32, u32, u32, CancellableGeneratorStep>::from_parts(100, 0);
+        let mut collector: Collector<u32, Vec<u32>> = generator.dyn_generatable().into();
+
+        let result = on_trigger(trigger, || collector.compute());
+
+        assert!(result.is_err());
     }
 }

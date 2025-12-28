@@ -1,6 +1,22 @@
 use crate::{Completable, Computable};
 
-/// Implementation of [`Computable`] that simply returns the provided value.
+/// A trivial [`Computable`] that immediately returns a pre-computed value.
+///
+/// This is useful for wrapping an already-computed value in the [`Computable`] interface,
+/// allowing it to be used in contexts that expect a computation.
+///
+/// After the value is returned once, subsequent calls to [`Computable::try_compute`] will
+/// return [`Incomplete::Exhausted`](crate::Incomplete::Exhausted).
+///
+/// # Example
+///
+/// ```rust
+/// use computation_process::{ComputableIdentity, Computable};
+///
+/// let mut identity: ComputableIdentity<i32> = 42.into();
+/// assert_eq!(identity.try_compute(), Ok(42));
+/// ```
+#[derive(Debug)]
 pub struct ComputableIdentity<T> {
     value: Option<T>,
 }
@@ -16,7 +32,7 @@ impl<T> Computable<T> for ComputableIdentity<T> {
         if let Some(result) = self.value.take() {
             Ok(result)
         } else {
-            panic!("Called `try_compute` on a stale `Computable`.");
+            Err(crate::Incomplete::Exhausted)
         }
     }
 }
@@ -42,12 +58,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "stale")]
-    fn test_computable_identity_stale() {
+    fn test_computable_identity_exhausted() {
         let mut identity: ComputableIdentity<i32> = 42.into();
         let _ = identity.try_compute().unwrap();
-        // The second call should panic
-        let _ = identity.try_compute();
+        // The second call should return Exhausted
+        assert_eq!(identity.try_compute(), Err(crate::Incomplete::Exhausted));
     }
 
     #[test]

@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 /// A generic trait implemented by types that represent a "computation".
 ///
 /// To advance the computation, repeatedly call [`Computable::try_compute`] until a value is
-/// returned. Once the value is returned, the computable becomes "stale" and is allowed to panic.
+/// returned. Once the value is returned, the computable becomes "exhausted" and will return
+/// [`Incomplete::Exhausted`].
 ///
 /// See also [`ComputableResult`] and [`crate::Computation`].
 pub trait Computable<T> {
@@ -19,6 +20,9 @@ pub trait Computable<T> {
                 Ok(value) => return Ok(value),
                 Err(Incomplete::Cancelled(c)) => return Err(c),
                 Err(Incomplete::Suspended) => continue,
+                Err(Incomplete::Exhausted) => {
+                    panic!("Called `compute` on an exhausted `Computable`.")
+                }
             }
         }
     }

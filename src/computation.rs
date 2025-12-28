@@ -2,10 +2,64 @@ use crate::{Algorithm, Completable, Computable, Stateful};
 use cancel_this::is_cancelled;
 use std::marker::PhantomData;
 
+/// Defines a single step of a [`Computation`].
+///
+/// Implement this trait to define the logic for advancing a computation.
+/// Each call to `step` should either:
+/// - Return `Ok(output)` if the computation is complete
+/// - Return `Err(Incomplete::Suspended)` to yield control and allow resumption later
+/// - Return `Err(Incomplete::Cancelled(_))` if cancellation was detected
+///
+/// # Type Parameters
+///
+/// - `CONTEXT`: Immutable configuration/input for the computation
+/// - `STATE`: Mutable state that persists across steps
+/// - `OUTPUT`: The final result type of the computation
 pub trait ComputationStep<CONTEXT, STATE, OUTPUT> {
+    /// Execute one step of the computation.
+    ///
+    /// This method is called repeatedly until it returns `Ok(output)`.
     fn step(context: &CONTEXT, state: &mut STATE) -> Completable<OUTPUT>;
 }
 
+/// A stateful computation that can be suspended and resumed.
+///
+/// `Computation` is the default implementation of [`Algorithm`]. It delegates the
+/// actual computation logic to a [`ComputationStep`] implementation while handling
+/// the boilerplate of state management and cancellation checking.
+///
+/// # Type Parameters
+///
+/// - `CONTEXT`: Immutable configuration passed to each step
+/// - `STATE`: Mutable state that persists across steps  
+/// - `OUTPUT`: The final result type
+/// - `STEP`: The [`ComputationStep`] implementation that defines the computation logic
+///
+/// # Example
+///
+/// ```rust
+/// use computation_process::{Computation, ComputationStep, Completable, Incomplete, Computable, Stateful};
+///
+/// struct SumStep;
+///
+/// impl ComputationStep<Vec<i32>, usize, i32> for SumStep {
+///     fn step(numbers: &Vec<i32>, index: &mut usize) -> Completable<i32> {
+///         if *index < numbers.len() {
+///             *index += 1;
+///             Err(Incomplete::Suspended) // Suspend after processing each number
+///         } else {
+///             Ok(numbers.iter().sum())
+///         }
+///     }
+/// }
+///
+/// let mut computation = Computation::<Vec<i32>, usize, i32, SumStep>::from_parts(
+///     vec![1, 2, 3, 4, 5],
+///     0,
+/// );
+/// assert_eq!(computation.compute().unwrap(), 15);
+/// ```
+#[derive(Debug)]
 pub struct Computation<CONTEXT, STATE, OUTPUT, STEP: ComputationStep<CONTEXT, STATE, OUTPUT>> {
     context: CONTEXT,
     state: STATE,

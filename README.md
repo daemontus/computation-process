@@ -38,7 +38,7 @@ Specific problems for which `computation-process` offers an opinionated design p
 
  - `Cancellable` and `Completable`: Function returns `Cancellable<T>` if it can be interrupted
    by a cancellation token from `cancel-this`. A function returns `Completable<T>`
-   if it is cancellable, and it also returns `Incomplete::Working` whenever it is safe to
+   if it is cancellable, and it also returns `Incomplete::Suspended` whenever it is safe to
    suspend.
  - `Computable<T>` and `Algorithm<CTX, STATE, T>`: An object implements `Computable<T>` if
    it can be driven into completion by repeatedly calling `try_compute`, which returns 

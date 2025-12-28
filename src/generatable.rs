@@ -5,6 +5,13 @@ use cancel_this::Cancellable;
 ///
 /// The computation is finished once [`Generatable::try_next`] returns `None`.
 pub trait Generatable<T>: Iterator<Item = Cancellable<T>> {
+    /// Try to advance the generator and return the next item.
+    ///
+    /// Returns:
+    /// - `Some(Ok(item))` when an item is available
+    /// - `Some(Err(Incomplete::Suspended))` when the generator needs to yield control
+    /// - `Some(Err(Incomplete::Cancelled(_)))` when the computation was canceled
+    /// - `None` when the generator is exhausted
     fn try_next(&mut self) -> Option<Completable<T>>;
 
     /// Utility method to convert this [`Generatable`] to a dynamic type.

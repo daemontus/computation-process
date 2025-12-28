@@ -6,9 +6,17 @@ use std::fmt::{Display, Formatter};
 /// The result can be unavailable because the computation was canceled ([`Cancelled`]) or because
 /// the algorithm has not finished computing but reached one of its pre-defined suspend points.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Incomplete {
+    /// The computation has reached a suspend point and can be resumed.
     Suspended,
+    /// The computation was canceled by an external cancellation token.
     Cancelled(Cancelled),
+    /// The computation has already completed and cannot produce more results.
+    ///
+    /// This is returned when a [`crate::Computable`] or [`crate::Generatable`] is polled
+    /// after it has already produced its final result.
+    Exhausted,
 }
 
 /// A [`Completable`] result is a value eventually computed by an algorithm where
@@ -25,6 +33,7 @@ impl Display for Incomplete {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Incomplete::Suspended => write!(f, "Operation suspended"),
+            Incomplete::Exhausted => write!(f, "Computation exhausted"),
             Incomplete::Cancelled(c) => write!(f, "{}", c),
         }
     }
@@ -102,5 +111,18 @@ mod tests {
         let mut set = HashSet::new();
         set.insert(Incomplete::Suspended);
         assert!(set.contains(&Incomplete::Suspended));
+    }
+
+    #[test]
+    fn test_incomplete_exhausted() {
+        let incomplete = Incomplete::Exhausted;
+        assert_eq!(incomplete, Incomplete::Exhausted);
+        assert_eq!(format!("{}", incomplete), "Computation exhausted");
+    }
+
+    #[test]
+    fn test_completable_err_exhausted() {
+        let result: Completable<i32> = Err(Incomplete::Exhausted);
+        assert_eq!(result, Err(Incomplete::Exhausted));
     }
 }

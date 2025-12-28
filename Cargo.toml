@@ -8,7 +8,8 @@ description = "A Rust library for defining stateful computations (and generators
 homepage = "https://github.com/daemontus/computation-process"
 repository = "https://github.com/daemontus/computation-process"
 readme = "README.md"
-keywords = ["cancel", "cancellation", "liveness", "cooperative"]
+keywords = ["computation", "state-machine", "suspend", "cancellation", "cooperative"]
+categories = ["algorithms", "concurrency"]
 license = "MIT"
 
 [dependencies]
