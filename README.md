@@ -6,7 +6,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/daemontus/computation-process?style=flat-square)](https://github.com/daemontus/computation-process/commits/main)
 [![Crates.io](https://img.shields.io/crates/l/computation-process?style=flat-square)](https://github.com/daemontus/computation-process/blob/main/LICENSE)
 
-# Rust Computation Process
+# `computation-process` (Suspendable CPU-intensive tasks in Rust)
 
 This library provides abstractions for defining "long-running" computations.
 The concepts in `computation-process` are often similar to "normal" asynchronous 
@@ -53,6 +53,16 @@ Specific problems for which `computation-process` offers an opinionated design p
    taking care of the remaining "boilerplate."
 
 ## Quickstart
+
+**It is highly recommended to enable LTO when using `computation-process` because it allows better
+inlining of our computation abstractions (at the expense of build time).**
+
+To enable LTO, add this to your `Cargo.toml`:
+
+```
+[profile.release]
+lto = true
+```
 
 ### A suspendable computation
 
