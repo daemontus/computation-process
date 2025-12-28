@@ -68,6 +68,7 @@ pub trait GeneratorStep<CONTEXT, STATE, ITEM> {
 pub struct Generator<CONTEXT, STATE, ITEM, STEP: GeneratorStep<CONTEXT, STATE, ITEM>> {
     context: CONTEXT,
     state: STATE,
+    exhausted: bool,
     _phantom: PhantomData<(ITEM, STEP)>,
 }
 
@@ -77,17 +78,26 @@ impl<CONTEXT, STATE, ITEM, STEP: GeneratorStep<CONTEXT, STATE, ITEM>> Iterator
     type Item = Cancellable<ITEM>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.exhausted {
+            return None;
+        }
         loop {
             if let Err(e) = is_cancelled!() {
                 return Some(Err(e));
             }
 
             match STEP::step(&self.context, &mut self.state) {
-                Ok(None) => return None,
+                Ok(None) => {
+                    self.exhausted = true;
+                    return None;
+                }
                 Ok(Some(item)) => return Some(Ok(item)),
                 Err(Incomplete::Suspended) => continue,
                 Err(Incomplete::Cancelled(c)) => return Some(Err(c)),
-                Err(Incomplete::Exhausted) => return None,
+                Err(Incomplete::Exhausted) => {
+                    self.exhausted = true;
+                    return None;
+                }
             }
         }
     }
@@ -97,10 +107,24 @@ impl<CONTEXT, STATE, OUTPUT, STEP: GeneratorStep<CONTEXT, STATE, OUTPUT>> Genera
     for Generator<CONTEXT, STATE, OUTPUT, STEP>
 {
     fn try_next(&mut self) -> Option<Completable<OUTPUT>> {
+        if self.exhausted {
+            return None;
+        }
         if let Err(e) = is_cancelled!() {
             return Some(Err(Incomplete::Cancelled(e)));
         }
-        STEP::step(&self.context, &mut self.state).transpose()
+        match STEP::step(&self.context, &mut self.state) {
+            Ok(None) => {
+                self.exhausted = true;
+                None
+            }
+            Ok(Some(v)) => Some(Ok(v)),
+            Err(Incomplete::Exhausted) => {
+                self.exhausted = true;
+                None
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }
 
@@ -114,6 +138,7 @@ impl<CONTEXT, STATE, ITEM, STEP: GeneratorStep<CONTEXT, STATE, ITEM>> Stateful<C
         Generator {
             context,
             state,
+            exhausted: false,
             _phantom: Default::default(),
         }
     }
@@ -316,5 +341,34 @@ mod tests {
         // But we can test that it generates at least one
         let item = generator.try_next().unwrap().unwrap();
         assert_eq!(item, 42);
+    }
+
+    struct FlakyExhaustionStep;
+
+    impl GeneratorStep<(), bool, i32> for FlakyExhaustionStep {
+        fn step(_context: &(), state: &mut bool) -> Completable<Option<i32>> {
+            // The first call says "exhausted"; subsequent calls would yield an item.
+            // A correct Generator must not call the step again after it observes exhaustion.
+            if !*state {
+                *state = true;
+                Ok(None)
+            } else {
+                Ok(Some(123))
+            }
+        }
+    }
+
+    #[test]
+    fn test_generator_is_sticky_exhausted_for_try_next() {
+        let mut generator = Generator::<(), bool, i32, FlakyExhaustionStep>::from_parts((), false);
+        assert_eq!(generator.try_next(), None);
+        assert_eq!(generator.try_next(), None);
+    }
+
+    #[test]
+    fn test_generator_is_sticky_exhausted_for_iterator_next() {
+        let mut generator = Generator::<(), bool, i32, FlakyExhaustionStep>::from_parts((), false);
+        assert_eq!(generator.next(), None);
+        assert_eq!(generator.next(), None);
     }
 }

@@ -51,3 +51,56 @@ Specific problems for which `computation-process` offers an opinionated design p
  - A `Computation` and `Generator` are the default implementations of these interfaces.
    They delegate the actual computation to `ComputationStep` and `GeneratorStep` while
    taking care of the remaining "boilerplate."
+
+## Quickstart
+
+### A suspendable computation
+
+```rust
+use computation_process::{Completable, Computable, Computation, ComputationStep, Incomplete, Stateful};
+
+struct CountingStep;
+
+impl ComputationStep<u32, u32, u32> for CountingStep {
+    fn step(target: &u32, count: &mut u32) -> Completable<u32> {
+        *count += 1;
+        if *count >= *target {
+            Ok(*count)
+        } else {
+            Err(Incomplete::Suspended)
+        }
+    }
+}
+
+fn example() {
+   let mut computation = Computation::<u32, u32, u32, CountingStep>::from_parts(5, 0);
+   assert_eq!(computation.compute().unwrap(), 5);  
+}
+```
+
+### A suspendable generator
+
+```rust
+use computation_process::{Completable, Generatable, Generator, GeneratorStep, Stateful};
+
+struct RangeStep;
+
+impl GeneratorStep<u32, u32, u32> for RangeStep {
+    fn step(max: &u32, current: &mut u32) -> Completable<Option<u32>> {
+        *current += 1;
+        if *current <= *max {
+            Ok(Some(*current))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+fn example() {
+   let mut generator = Generator::<u32, u32, u32, RangeStep>::from_parts(3, 0);
+   assert_eq!(generator.try_next(), Some(Ok(1)));
+   assert_eq!(generator.try_next(), Some(Ok(2)));
+   assert_eq!(generator.try_next(), Some(Ok(3)));
+   assert_eq!(generator.try_next(), None);  
+}
+```

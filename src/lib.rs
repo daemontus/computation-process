@@ -3,6 +3,10 @@
 //! A Rust library for defining stateful computations (and generators) that support
 //! suspend/resume, interleaving, cancellation, and serialization.
 //!
+//! This crate does not use `unsafe`.
+
+#![forbid(unsafe_code)]
+//!
 //! ## Overview
 //!
 //! This library provides abstractions for defining "long-running" computations.

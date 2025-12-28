@@ -13,17 +13,39 @@ pub trait Computable<T> {
     /// Try to advance this computation, returning a value once the computation is done.
     fn try_compute(&mut self) -> Completable<T>;
 
-    /// Advance this computation until completion, skipping over all suspended states.
-    fn compute(&mut self) -> Cancellable<T> {
+    /// Advance this computation until it either completes, is canceled, or becomes exhausted,
+    /// skipping over all suspended states.
+    ///
+    /// This method is identical to repeatedly calling [`Computable::try_compute`] until it
+    /// returns something other than [`Incomplete::Suspended`].
+    ///
+    /// Note that this method can loop forever if the computation never completes and keeps
+    /// returning [`Incomplete::Suspended`].
+    fn compute_completable(&mut self) -> Completable<T> {
         loop {
             match self.try_compute() {
                 Ok(value) => return Ok(value),
-                Err(Incomplete::Cancelled(c)) => return Err(c),
                 Err(Incomplete::Suspended) => continue,
-                Err(Incomplete::Exhausted) => {
-                    panic!("Called `compute` on an exhausted `Computable`.")
-                }
+                Err(e) => return Err(e),
             }
+        }
+    }
+
+    /// Advance this computation until completion, skipping over all suspended states.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called on an exhausted computation, i.e., if [`Computable::try_compute`] returns
+    /// [`Incomplete::Exhausted`]. If you want to handle exhaustion gracefully, use
+    /// [`Computable::compute_completable`] instead.
+    fn compute(&mut self) -> Cancellable<T> {
+        match self.compute_completable() {
+            Ok(value) => Ok(value),
+            Err(Incomplete::Suspended) => unreachable!(
+                "`compute_completable` never returns `Incomplete::Suspended` by definition."
+            ),
+            Err(Incomplete::Cancelled(c)) => Err(c),
+            Err(Incomplete::Exhausted) => panic!("Called `compute` on an exhausted `Computable`."),
         }
     }
 
