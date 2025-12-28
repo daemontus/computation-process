@@ -1,5 +1,6 @@
 use crate::{Algorithm, Completable, Computable, Stateful};
 use cancel_this::is_cancelled;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// Defines a single step of a [`Computation`].
@@ -59,10 +60,14 @@ pub trait ComputationStep<CONTEXT, STATE, OUTPUT> {
 /// );
 /// assert_eq!(computation.compute().unwrap(), 15);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(
+    bound = "CONTEXT: Serialize + for<'a> Deserialize<'a>, STATE: Serialize + for<'a> Deserialize<'a>"
+)]
 pub struct Computation<CONTEXT, STATE, OUTPUT, STEP: ComputationStep<CONTEXT, STATE, OUTPUT>> {
     context: CONTEXT,
     state: STATE,
+    #[serde(skip)]
     _phantom: PhantomData<(OUTPUT, STEP)>,
 }
 

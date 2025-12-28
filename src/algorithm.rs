@@ -70,7 +70,7 @@ pub trait GenAlgorithm<CONTEXT, STATE, OUTPUT>:
     where
         Self: Sized + 'static,
     {
-        Collector::<OUTPUT, COLLECTION>::from(self.dyn_generatable())
+        Collector::<OUTPUT, COLLECTION, Self>::new(self)
     }
 
     /// Convert to a dynamic [`GenAlgorithm`] variant.

@@ -1,6 +1,8 @@
-use crate::{Completable, Computable, DynGeneratable, Incomplete};
+use crate::{Completable, Computable, DynGeneratable, Generatable, Incomplete};
+use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
 
-/// A [`Computable`] that collects all items from a [`Generatable`](crate::Generatable) into a collection.
+/// A [`Computable`] that collects all items from a [`Generatable`] into a collection.
 ///
 /// This is useful for converting a generator/stream of items into a single collected result.
 /// The collection type must implement [`Default`] and [`Extend`].
@@ -28,24 +30,48 @@ use crate::{Completable, Computable, DynGeneratable, Incomplete};
 /// let result = collector.compute().unwrap();
 /// assert_eq!(result, vec![1, 2, 3]);
 /// ```
-pub struct Collector<ITEM, COLLECTION: Default + Extend<ITEM>> {
-    generator: DynGeneratable<ITEM>,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    bound = "G: Serialize + for<'a> Deserialize<'a>, COLLECTION: Serialize + for<'a> Deserialize<'a>"
+)]
+pub struct Collector<ITEM, COLLECTION, G = DynGeneratable<ITEM>>
+where
+    COLLECTION: Default + Extend<ITEM>,
+    G: Generatable<ITEM>,
+{
+    generator: G,
     collector: Option<COLLECTION>,
+    #[serde(skip)]
+    _phantom: PhantomData<ITEM>,
 }
 
-impl<ITEM, COLLECTION: Default + Extend<ITEM>> From<DynGeneratable<ITEM>>
-    for Collector<ITEM, COLLECTION>
+impl<ITEM, COLLECTION, G> Collector<ITEM, COLLECTION, G>
+where
+    COLLECTION: Default + Extend<ITEM>,
+    G: Generatable<ITEM>,
 {
-    fn from(value: DynGeneratable<ITEM>) -> Self {
+    /// Create a new collector for the given generator.
+    pub fn new(generator: G) -> Self {
         Collector {
-            generator: value,
+            generator,
             collector: Some(Default::default()),
+            _phantom: Default::default(),
         }
     }
 }
 
-impl<ITEM, COLLECTION: Default + Extend<ITEM>> Computable<COLLECTION>
-    for Collector<ITEM, COLLECTION>
+impl<ITEM, COLLECTION: Default + Extend<ITEM>> From<DynGeneratable<ITEM>>
+    for Collector<ITEM, COLLECTION, DynGeneratable<ITEM>>
+{
+    fn from(value: DynGeneratable<ITEM>) -> Self {
+        Collector::new(value)
+    }
+}
+
+impl<ITEM, COLLECTION, G> Computable<COLLECTION> for Collector<ITEM, COLLECTION, G>
+where
+    COLLECTION: Default + Extend<ITEM>,
+    G: Generatable<ITEM>,
 {
     fn try_compute(&mut self) -> Completable<COLLECTION> {
         match self.generator.try_next() {

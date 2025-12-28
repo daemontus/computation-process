@@ -1,6 +1,7 @@
 use crate::generatable::Generatable;
 use crate::{Completable, GenAlgorithm, Incomplete, Stateful};
 use cancel_this::{Cancellable, is_cancelled};
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// Defines a single step of a [`Generator`].
@@ -64,11 +65,15 @@ pub trait GeneratorStep<CONTEXT, STATE, ITEM> {
 /// assert_eq!(generator.try_next(), Some(Ok(3)));
 /// assert_eq!(generator.try_next(), None);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(
+    bound = "CONTEXT: Serialize + for<'a> Deserialize<'a>, STATE: Serialize + for<'a> Deserialize<'a>"
+)]
 pub struct Generator<CONTEXT, STATE, ITEM, STEP: GeneratorStep<CONTEXT, STATE, ITEM>> {
     context: CONTEXT,
     state: STATE,
     exhausted: bool,
+    #[serde(skip)]
     _phantom: PhantomData<(ITEM, STEP)>,
 }
 
