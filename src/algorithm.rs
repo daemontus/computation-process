@@ -81,3 +81,125 @@ pub trait GenAlgorithm<CONTEXT, STATE, OUTPUT>:
         Box::new(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Computation, ComputationStep, Generator, GeneratorStep, Incomplete};
+
+    struct TestComputationStep;
+
+    impl ComputationStep<i32, u32, String> for TestComputationStep {
+        fn step(context: &i32, state: &mut u32) -> crate::Completable<String> {
+            *state += 1;
+            if *state < 2 {
+                Err(Incomplete::Suspended)
+            } else {
+                Ok(format!("done-{}", context))
+            }
+        }
+    }
+
+    #[test]
+    fn test_stateful_from_parts() {
+        let stateful = Computation::<i32, u32, String, TestComputationStep>::from_parts(42, 0);
+        assert_eq!(*stateful.context(), 42);
+        assert_eq!(*stateful.state(), 0);
+    }
+
+    #[test]
+    fn test_stateful_configure() {
+        let stateful = Computation::<i32, u32, String, TestComputationStep>::configure(100, 5u32);
+        assert_eq!(*stateful.context(), 100);
+        assert_eq!(*stateful.state(), 5);
+    }
+
+    #[test]
+    fn test_stateful_into_parts() {
+        let stateful = Computation::<i32, u32, String, TestComputationStep>::from_parts(50, 10);
+        let (context, state) = stateful.into_parts();
+        assert_eq!(context, 50);
+        assert_eq!(state, 10);
+    }
+
+    #[test]
+    fn test_stateful_context() {
+        let stateful = Computation::<i32, u32, String, TestComputationStep>::from_parts(200, 0);
+        assert_eq!(*stateful.context(), 200);
+    }
+
+    #[test]
+    fn test_stateful_state() {
+        let stateful = Computation::<i32, u32, String, TestComputationStep>::from_parts(0, 42);
+        assert_eq!(*stateful.state(), 42);
+    }
+
+    #[test]
+    fn test_stateful_state_mut() {
+        let mut stateful = Computation::<i32, u32, String, TestComputationStep>::from_parts(0, 0);
+        *stateful.state_mut() = 100;
+        assert_eq!(*stateful.state(), 100);
+    }
+
+    #[test]
+    fn test_algorithm_run() {
+        let result = Computation::<i32, u32, String, TestComputationStep>::run(42, 0u32).unwrap();
+        assert_eq!(result, "done-42");
+    }
+
+    #[test]
+    fn test_algorithm_dyn_algorithm() {
+        let algorithm = Computation::<i32, u32, String, TestComputationStep>::from_parts(100, 0);
+        let mut dyn_algorithm = algorithm.dyn_algorithm();
+        let result = dyn_algorithm.compute().unwrap();
+        assert_eq!(result, "done-100");
+    }
+
+    struct TestGeneratorStep;
+
+    impl GeneratorStep<i32, u32, String> for TestGeneratorStep {
+        fn step(context: &i32, state: &mut u32) -> crate::Completable<Option<String>> {
+            *state += 1;
+            if *state <= 2 {
+                Ok(Some(format!("{}-{}", context, state)))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+
+    #[test]
+    fn test_gen_algorithm_computation() {
+        let generator = Generator::<i32, u32, String, TestGeneratorStep>::from_parts(42, 0);
+        let mut computation = generator.computation::<Vec<String>>();
+        let result = computation.compute().unwrap();
+        assert_eq!(result, vec!["42-1", "42-2"]);
+    }
+
+    #[test]
+    fn test_gen_algorithm_computation_hashset() {
+        let generator = Generator::<i32, u32, String, TestGeneratorStep>::from_parts(42, 0);
+        let mut computation = generator.computation::<std::collections::HashSet<String>>();
+        let result = computation.compute().unwrap();
+        assert_eq!(result.len(), 2);
+        assert!(result.contains("42-1"));
+        assert!(result.contains("42-2"));
+    }
+
+    #[test]
+    fn test_gen_algorithm_dyn_algorithm() {
+        let generator = Generator::<i32, u32, String, TestGeneratorStep>::from_parts(100, 0);
+        let mut dyn_algorithm = generator.dyn_algorithm();
+        let item = dyn_algorithm.try_next().unwrap().unwrap();
+        assert_eq!(item, "100-1");
+    }
+
+    #[test]
+    fn test_stateful_configure_with_conversions() {
+        // Test that configure works with Into conversions
+        let stateful =
+            Computation::<i32, u32, String, TestComputationStep>::configure(42i16, 10u16);
+        assert_eq!(*stateful.context(), 42i32);
+        assert_eq!(*stateful.state(), 10u32);
+    }
+}

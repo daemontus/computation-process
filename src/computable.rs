@@ -89,3 +89,134 @@ impl<T, C: Computable<T>> ComputableResult<T, C> {
         self.computable
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ComputableIdentity, Incomplete};
+
+    #[test]
+    fn test_computable_result_from() {
+        let identity: ComputableIdentity<i32> = 42.into();
+        let result: ComputableResult<i32, ComputableIdentity<i32>> = identity.into();
+        assert!(result.result_ref().is_none());
+    }
+
+    #[test]
+    fn test_computable_result_new() {
+        let identity: ComputableIdentity<i32> = 100.into();
+        let mut result = ComputableResult::new(identity);
+        assert!(result.result_ref().is_none());
+
+        let computed = result.try_compute().unwrap();
+        assert_eq!(*computed, 100);
+        assert_eq!(result.result_ref(), Some(&100));
+    }
+
+    #[test]
+    fn test_computable_result_try_compute_multiple_times() {
+        let identity: ComputableIdentity<String> = "test".to_string().into();
+        let mut result = ComputableResult::new(identity);
+
+        let first = result.try_compute().unwrap();
+        assert_eq!(*first, "test");
+        let first_ptr = first as *const String;
+
+        // The second call should return the same reference
+        let second = result.try_compute().unwrap();
+        assert_eq!(*second, "test");
+        let second_ptr = second as *const String;
+        assert_eq!(first_ptr, second_ptr);
+    }
+
+    #[test]
+    fn test_computable_result_result() {
+        let identity: ComputableIdentity<i32> = 42.into();
+        let mut result = ComputableResult::new(identity);
+        let _ = result.try_compute().unwrap();
+
+        let value = result.result();
+        assert_eq!(value, Some(42));
+    }
+
+    #[test]
+    fn test_computable_result_result_none() {
+        let identity: ComputableIdentity<i32> = 42.into();
+        let result = ComputableResult::new(identity);
+        let value = result.result();
+        assert_eq!(value, None);
+    }
+
+    #[test]
+    fn test_computable_result_computable_ref() {
+        let identity: ComputableIdentity<i32> = 42.into();
+        let result = ComputableResult::new(identity);
+        let _computable_ref = result.computable_ref();
+    }
+
+    #[test]
+    fn test_computable_result_computable() {
+        let identity: ComputableIdentity<i32> = 42.into();
+        let result = ComputableResult::new(identity);
+        let mut computable = result.computable();
+        let value = computable.try_compute().unwrap();
+        assert_eq!(value, 42);
+    }
+
+    #[test]
+    fn test_dyn_computable() {
+        let identity: ComputableIdentity<i32> = 42.into();
+        let mut dyn_computable = identity.dyn_computable();
+        let result = dyn_computable.try_compute().unwrap();
+        assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn test_compute_method() {
+        let mut identity: ComputableIdentity<i32> = 42.into();
+        let result = identity.compute().unwrap();
+        assert_eq!(result, 42);
+    }
+
+    // Test with a computable that suspends
+    struct SuspendingComputable {
+        count: u32,
+        target: u32,
+    }
+
+    impl Computable<u32> for SuspendingComputable {
+        fn try_compute(&mut self) -> Completable<u32> {
+            self.count += 1;
+            if self.count < self.target {
+                Err(Incomplete::Suspended)
+            } else {
+                Ok(self.count)
+            }
+        }
+    }
+
+    #[test]
+    fn test_compute_with_suspensions() {
+        let mut computable = SuspendingComputable {
+            count: 0,
+            target: 3,
+        };
+        let result = computable.compute().unwrap();
+        assert_eq!(result, 3);
+    }
+
+    #[test]
+    fn test_try_compute_with_suspensions() {
+        let mut computable = SuspendingComputable {
+            count: 0,
+            target: 3,
+        };
+
+        // The first call should suspend
+        assert_eq!(computable.try_compute(), Err(Incomplete::Suspended));
+        // The second call should suspend
+        assert_eq!(computable.try_compute(), Err(Incomplete::Suspended));
+        // The third call should complete
+        assert_eq!(computable.try_compute(), Ok(3));
+    }
+}
