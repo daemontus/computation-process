@@ -1,2 +1,44 @@
-# computation-process
-A Rust library for defining stateful computations (and generators) that support suspend/resume, interleaving, cancellation and serialization.
+# Rust Computation Process
+
+This library provides abstractions for defining "long-running" computations.
+The concepts in `computation-process` are often similar to "normal" asynchronous 
+code, but offer certain features that were never a priority in "normal" asynchronous 
+programming. **The target audience are projects that implement CPU-intensive,
+long-running computations but require granular control over the computation state.**
+
+> This is currently still very "experimental". I am releasing this on `crates.io`
+> to allow some initial large-scale usage experiments, but please bear in mind that the
+> API can change in the future.
+
+Specific problems for which `computation-process` offers an opinionated design pattern:
+
+ - **Cancellation:** Each computation can be forcefully stopped using cooperative cancellation
+   (compatible with the [`cancel-this`](https://crates.io/crates/cancel-this) crate).
+   A canceled computation should remain in a consistent state from which it can be 
+   restarted even though some intermediate results may need to be recomputed.
+ - **Suspend/resume:** A computation can define safe suspend points (based on polling).
+   During these points, it is safe to serialize/interleave or otherwise "transfer" the 
+   computation without losing any progress.
+ - **Interleaving and priority scheduling:** Presence of suspend points allows us to 
+   safely interleave multiple computations on a single thread. Interleaving can use the 
+   inner state of each computation for priority-based scheduling.
+ - **Serialization:** The state of each computation is isolated into a dedicated object 
+   and can be therefore saved/restored during any of the suspend points.
+
+## Overview of concepts
+
+ - `Cancellable` and `Completable`: Function returns `Cancellable<T>` if it can be interrupted
+   by a cancellation token from `cancel-this`. A function returns `Completable<T>`
+   if it is cancellable, and it also returns `Incomplete::Working` whenever it is safe to
+   suspend.
+ - `Computable<T>` and `Algorithm<CTX, STATE, T>`: An object implements `Computable<T>` if
+   it can be driven into completion by repeatedly calling `try_compute`, which returns 
+   `Completable<&T>`. An `Algorithm` is then an extension of `Computable` that can be 
+   configured (i.e., created) using `CTX` and `STATE` objects, and it provides access to 
+   these objects during computation.
+ - Similarly, `Generatable<T>` and `GenAlgorithm<CTX, STATE, T>` are variants of `Computable`
+   and `Algorithm` that do not produce a single value, but rather a "stream" of `T` values
+   (like a cancellable/suspendable iterator).
+ - A `Computation` and `Generator` are the default implementations of these interfaces.
+   They delegate the actual computation to `ComputationStep` and `GeneratorStep` while
+   taking care of the remaining "boilerplate".

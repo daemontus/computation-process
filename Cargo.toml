@@ -1,0 +1,14 @@
+[package]
+name = "computation-process"
+version = "0.1.0"
+edition = "2024"
+authors = ["Samuel Pastva <daemontus@gmail.com>"]
+rust-version = "1.88.0"
+description = "A Rust library for defining stateful computations (and generators) that support suspend/resume, interleaving, cancellation and serialization."
+homepage = "https://github.com/daemontus/computation-process"
+repository = "https://github.com/daemontus/computation-process"
+readme = "README.md"
+keywords = ["cancel", "cancellation", "liveness", "cooperative"]
+license = "MIT"
+
+[dependencies]
