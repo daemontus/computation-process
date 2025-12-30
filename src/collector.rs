@@ -1,5 +1,4 @@
 use crate::{Completable, Computable, DynGeneratable, Generatable, Incomplete};
-use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// A [`Computable`] that collects all items from a [`Generatable`] into a collection.
@@ -30,9 +29,13 @@ use std::marker::PhantomData;
 /// let result = collector.compute().unwrap();
 /// assert_eq!(result, vec![1, 2, 3]);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(
-    bound = "G: Serialize + for<'a> Deserialize<'a>, COLLECTION: Serialize + for<'a> Deserialize<'a>"
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(
+        bound = "G: serde::Serialize + for<'a> serde::Deserialize<'a>, COLLECTION: serde::Serialize + for<'a> serde::Deserialize<'a>"
+    )
 )]
 pub struct Collector<ITEM, COLLECTION, G = DynGeneratable<ITEM>>
 where
@@ -41,7 +44,7 @@ where
 {
     generator: G,
     collector: Option<COLLECTION>,
-    #[serde(skip)]
+    #[cfg_attr(feature = "serde", serde(skip))]
     _phantom: PhantomData<ITEM>,
 }
 

@@ -1,6 +1,5 @@
 use crate::{Completable, DynComputable, Incomplete};
 use cancel_this::Cancellable;
-use serde::{Deserialize, Serialize};
 
 /// A generic trait implemented by types that represent a "computation".
 ///
@@ -59,7 +58,8 @@ pub trait Computable<T> {
 }
 
 /// A result-like object that stores the result of a [`Computable`] for later use.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ComputableResult<T, C: Computable<T>> {
     computable: C,
     result: Option<T>,

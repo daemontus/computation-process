@@ -1,5 +1,4 @@
 use crate::{Completable, Computable};
-use serde::{Deserialize, Serialize};
 
 /// A trivial [`Computable`] that immediately returns a pre-computed value.
 ///
@@ -17,7 +16,8 @@ use serde::{Deserialize, Serialize};
 /// let mut identity: ComputableIdentity<i32> = 42.into();
 /// assert_eq!(identity.try_compute(), Ok(42));
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ComputableIdentity<T> {
     value: Option<T>,
 }

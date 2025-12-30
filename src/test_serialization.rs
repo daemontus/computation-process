@@ -1,4 +1,4 @@
-use computation_process::{
+use crate::{
     Collector, Completable, Computable, ComputableResult, Computation, ComputationStep, Generator,
     GeneratorStep, Incomplete, Stateful,
 };

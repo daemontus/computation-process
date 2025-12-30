@@ -71,6 +71,9 @@ mod computation;
 mod generatable;
 mod generator;
 
+#[cfg(all(feature = "serde", test))]
+mod test_serialization;
+
 pub use algorithm::{Algorithm, GenAlgorithm, Stateful};
 pub use collector::Collector;
 pub use completable::{Completable, Incomplete};

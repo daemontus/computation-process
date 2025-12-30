@@ -13,9 +13,12 @@ keywords = ["computation", "state-machine", "suspend", "cancellation", "cooperat
 categories = ["algorithms", "concurrency"]
 license = "MIT"
 
+[features]
+serde = ["dep:serde"]
+
 [dependencies]
 cancel-this = "0.4.0"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
 serde_json = "1.0.148"
