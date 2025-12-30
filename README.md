@@ -42,7 +42,7 @@ Specific problems for which `computation-process` offers an opinionated design p
    suspend.
  - `Computable<T>` and `Algorithm<CTX, STATE, T>`: An object implements `Computable<T>` if
    it can be driven into completion by repeatedly calling `try_compute`, which returns 
-   `Completable<&T>`. An `Algorithm` is then an extension of `Computable` that can be 
+   `Completable<T>`. An `Algorithm` is then an extension of `Computable` that can be 
    configured (i.e., created) using `CTX` and `STATE` objects, and it provides access to 
    these objects during computation.
  - Similarly, `Generatable<T>` and `GenAlgorithm<CTX, STATE, T>` are variants of `Computable`
