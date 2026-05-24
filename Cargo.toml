@@ -17,7 +17,7 @@ license = "MIT"
 serde = ["dep:serde"]
 
 [dependencies]
-cancel-this = "0.4.0"
+cancel-this = "0.5"
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
